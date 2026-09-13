@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { createCheckoutSession as createStripeCheckoutSession } from "@/lib/stripe-billing.server";
+import { toAllowedCheckoutRedirectUrl } from "@/lib/safe-redirect";
 import { z } from "zod";
 
 const PRO_PRICE_AMOUNT = 1900; // $19.00 in cents
@@ -23,5 +24,7 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
       unitAmountCents: PRO_PRICE_AMOUNT,
     });
 
-    return { url: session.url };
+    const url = toAllowedCheckoutRedirectUrl(session.url);
+    if (!url) throw new Error("Checkout session returned an invalid URL");
+    return { url };
   });
