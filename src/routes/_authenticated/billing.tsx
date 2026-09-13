@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { getProfile } from "@/lib/agent.functions";
 import { createCheckoutSession } from "@/lib/billing.functions";
+import { redirectToAllowedCheckoutUrl } from "@/lib/safe-redirect";
 import { ShieldCheck, Zap, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -17,7 +18,11 @@ function BillingPage() {
 
   const checkout = useMutation({
     mutationFn: () => checkoutFn({ data: { returnUrl: `${window.location.origin}/billing` } }),
-    onSuccess: (r) => { window.location.href = r.url; },
+    onSuccess: (r) => {
+      if (!redirectToAllowedCheckoutUrl(r.url)) {
+        toast.error("Checkout returned an invalid URL");
+      }
+    },
     onError: (e: any) => toast.error(e.message || "Checkout failed"),
   });
 
