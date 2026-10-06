@@ -90,9 +90,9 @@
   },
   "overrides": {
     "seroval": "1.6.4",
+    "seroval-plugins": "1.6.4",
     "undici": "8.10.2",
     "zod": "4.5.0",
-    "@tanstack/start-server-core": "1.167.30",
     "srvx": "0.12.0",
     "react-hook-form": "7.81.0",
     "inline-style-parser": "0.2.9",
