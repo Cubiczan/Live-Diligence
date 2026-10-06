@@ -89,7 +89,7 @@
     "vite": "^7.3.1"
   },
   "overrides": {
-    "seroval": "1.5.3",
+    "seroval": "1.6.4",
     "undici": "8.10.2",
     "zod": "4.5.0",
     "@tanstack/start-server-core": "1.167.30",
