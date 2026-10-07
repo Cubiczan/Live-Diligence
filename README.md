@@ -121,7 +121,7 @@ The `aws/` directory contains a CDK app that mirrors the Lovable runtime on:
 
 - **Lambda** (Node 20) running the same agent loop (`agent-runtime.server.ts` reused).
 - **API Gateway HTTP API** for the public runner endpoint.
-- **Bedrock** Claude 3.5 Sonnet as an alternate synthesizer.
+- **Bedrock** Amazon Nova Lite (`us.amazon.nova-lite-v1:0` in us-east-1, Converse API) as the synthesizer. Anthropic Claude is not used on this path.
 - **DynamoDB** for reports + events.
 - **Secrets Manager** for `EXA_API_KEY` / `STRIPE_SECRET_KEY`.
 

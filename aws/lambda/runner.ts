@@ -1,21 +1,22 @@
 // Live Diligence — AWS Lambda runner.
 // Receives { reportId, query, isPro } and runs the agent loop against
-// SEC EDGAR (direct) + Exa (Airbyte CLI), synthesizing the memo with AWS Bedrock (Claude 3.5).
+// SEC EDGAR (direct) + Exa (Airbyte CLI), synthesizing the memo with
+// Amazon Nova on Bedrock (Converse API). Defaults to Nova Lite.
 // Persists reports + events to DynamoDB.
 
-import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
+import { BedrockRuntimeClient, ConverseCommand } from "@aws-sdk/client-bedrock-runtime";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, PutCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { GetSecretValueCommand, SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
 import { exaSearch } from "../../src/lib/exa.server";
+import { DEFAULT_BEDROCK_REGION, buildConverseInput, resolveBedrockModelId, textFromConverseResponse } from "./model";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
-const bedrock = new BedrockRuntimeClient({});
+const bedrock = new BedrockRuntimeClient({ region: process.env.AWS_REGION || DEFAULT_BEDROCK_REGION });
 const sm = new SecretsManagerClient({});
 
 const REPORTS = process.env.REPORTS_TABLE!;
 const EVENTS = process.env.EVENTS_TABLE!;
-const MODEL_ID = process.env.BEDROCK_MODEL_ID || "anthropic.claude-3-5-sonnet-20241022-v2:0";
 
 let exaKeyBootstrapped = false;
 async function bootstrapExaFallback() {
@@ -44,21 +45,10 @@ async function patchReport(reportId: string, patch: Record<string, any>) {
   }));
 }
 
-async function bedrockChat(system: string, user: string, maxTokens = 2000) {
-  const cmd = new InvokeModelCommand({
-    modelId: MODEL_ID,
-    contentType: "application/json",
-    body: JSON.stringify({
-      anthropic_version: "bedrock-2023-05-31",
-      max_tokens: maxTokens,
-      system,
-      messages: [{ role: "user", content: user }],
-    }),
-  });
+async function bedrockChat(modelId: string, system: string, user: string, maxTokens = 2000) {
+  const cmd = new ConverseCommand(buildConverseInput(modelId, system, user, maxTokens));
   const res = await bedrock.send(cmd);
-  const text = new TextDecoder().decode(res.body);
-  const j = JSON.parse(text);
-  return j.content?.[0]?.text || "";
+  return textFromConverseResponse(res);
 }
 
 async function tickerToCik(ticker: string) {
@@ -94,11 +84,13 @@ export const handler = async (event: any) => {
   if (!reportId || !query) return { statusCode: 400, body: "missing fields" };
 
   try {
+    const modelId = resolveBedrockModelId(process.env.BEDROCK_MODEL_ID);
     await bootstrapExaFallback();
     await patchReport(reportId, { status: "running", query, updated_at: new Date().toISOString() });
     await emit(reportId, "plan", { msg: "Planning..." }, "running");
 
     const planRaw = await bedrockChat(
+      modelId,
       "You output STRICT JSON. Given an investing query, return {ticker, company_name, sub_questions[4], web_queries[4]}.",
       query, 600,
     );
@@ -115,8 +107,9 @@ export const handler = async (event: any) => {
     const seen = new Set<string>(); const dedup = web.filter((r) => seen.has(r.url) ? false : (seen.add(r.url), true)).slice(0, 12);
     await emit(reportId, "exa", { count: dedup.length, sources: dedup.map((r) => ({ title: r.title, url: r.url })) }, "done");
 
-    await emit(reportId, "synth", { msg: "Synthesizing with Bedrock Claude 3.5..." }, "running");
+    await emit(reportId, "synth", { msg: `Synthesizing with Amazon Bedrock (${modelId})...` }, "running");
     const memo = await bedrockChat(
+      modelId,
       `You are a senior equity-research analyst writing a Markdown diligence memo with sections: ## Executive Summary / ## Thesis / ## Financials & KPIs / ## Risks / ## Catalysts / ## Sources. Inline-cite web sources [n].`,
       [
         `Query: ${query}`,

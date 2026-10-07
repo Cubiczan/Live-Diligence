@@ -10,6 +10,7 @@ import * as apigwint from "aws-cdk-lib/aws-apigatewayv2-integrations";
 import * as ddb from "aws-cdk-lib/aws-dynamodb";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as sm from "aws-cdk-lib/aws-secretsmanager";
+import { BEDROCK_INVOKE_ACTIONS, DEFAULT_BEDROCK_REGION, NOVA_BEDROCK_RESOURCES, resolveBedrockModelId } from "./lambda/model";
 
 export class LiveDiligenceStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
@@ -32,6 +33,9 @@ export class LiveDiligenceStack extends Stack {
     const exaSecret = new sm.Secret(this, "ExaApiKey", { secretName: "live-diligence/exa-api-key" });
     const stripeSecret = new sm.Secret(this, "StripeSecret", { secretName: "live-diligence/stripe-secret" });
 
+    // Resolving here makes `cdk synth` fail before an anthropic.* override is baked into the function.
+    const bedrockModelId = resolveBedrockModelId(process.env.BEDROCK_MODEL_ID);
+
     const fn = new nodejs.NodejsFunction(this, "AgentRunner", {
       runtime: lambda.Runtime.NODEJS_20_X,
       entry: "./lambda/runner.ts",
@@ -42,7 +46,7 @@ export class LiveDiligenceStack extends Stack {
         EVENTS_TABLE: events.tableName,
         EXA_SECRET_ARN: exaSecret.secretArn,
         STRIPE_SECRET_ARN: stripeSecret.secretArn,
-        BEDROCK_MODEL_ID: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+        BEDROCK_MODEL_ID: bedrockModelId,
         AIRBYTE_WORKSPACE: process.env.AIRBYTE_WORKSPACE || "default",
       },
     });
@@ -53,8 +57,8 @@ export class LiveDiligenceStack extends Stack {
     stripeSecret.grantRead(fn);
 
     fn.addToRolePolicy(new iam.PolicyStatement({
-      actions: ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"],
-      resources: ["*"],
+      actions: [...BEDROCK_INVOKE_ACTIONS],
+      resources: [...NOVA_BEDROCK_RESOURCES],
     }));
 
     const api = new apigwv2.HttpApi(this, "AgentApi", {
@@ -69,4 +73,4 @@ export class LiveDiligenceStack extends Stack {
 }
 
 const app = new App();
-new LiveDiligenceStack(app, "LiveDiligenceStack", { env: { region: process.env.AWS_REGION || "us-east-1" } });
+new LiveDiligenceStack(app, "LiveDiligenceStack", { env: { region: process.env.AWS_REGION || DEFAULT_BEDROCK_REGION } });

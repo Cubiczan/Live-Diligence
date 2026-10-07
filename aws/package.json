@@ -5,7 +5,9 @@
   "scripts": {
     "synth": "cdk synth",
     "deploy": "cdk deploy",
-    "destroy": "cdk destroy"
+    "destroy": "cdk destroy",
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test lambda/model.test.ts"
   },
   "dependencies": {
     "aws-cdk-lib": "^2.160.0",
