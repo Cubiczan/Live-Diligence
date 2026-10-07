@@ -37,7 +37,7 @@ An agentic diligence workspace: enter a ticker or company, get a streaming resea
 ## 6. AWS deployment path (repo only, not run here)
 - `aws/` folder with CDK TypeScript stack:
   - Lambda (Node 20) running the same agent pipeline (shared TS in `packages/agent-core`).
-  - Bedrock Claude 3.5 Sonnet as alt synthesizer.
+  - Bedrock Amazon Nova Lite (`us.amazon.nova-lite-v1:0`) as the synthesizer.
   - API Gateway HTTP API + DynamoDB (reports) + Secrets Manager (EXA/STRIPE).
   - `cdk deploy` instructions in README.
 
